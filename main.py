@@ -23,8 +23,10 @@ class IrrigationApp:
         self.notebook.pack(fill=tk.BOTH, expand=True)
 
         # Onglets existants (Irrigation et Fertilisation)
+        self.parcelles_frame = ttk.Frame(self.notebook)
         self.irrigation_frame = ttk.Frame(self.notebook)
         self.fertilisation_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.parcelles_frame, text="Gestion des parcelles")
         self.notebook.add(self.irrigation_frame, text="Irrigation")
         self.notebook.add(self.fertilisation_frame, text="Fertilisation")
 
@@ -36,10 +38,34 @@ class IrrigationApp:
         self.notebook.add(self.besoins_frame, text="Besoins en eau et nutriments")
         self.notebook.add(self.recommandations_frame, text="Recommandations")
 
+
+        # Widgets pour les parcelles
+        ttk.Label(self.parcelles_frame, text="Nom de la parcelle:").grid(row=0, column=0, padx=5, pady=5)
+        self.nouvelle_parcelle_nom = ttk.Entry(self.parcelles_frame)
+        self.nouvelle_parcelle_nom.grid(row=0, column=1, padx=5, pady=5)
+
+        ttk.Label(self.parcelles_frame, text="Superficie (m²):").grid(row=1, column=0, padx=5, pady=5)
+        self.nouvelle_parcelle_superficie = ttk.Entry(self.parcelles_frame)
+        self.nouvelle_parcelle_superficie.grid(row=1, column=1, padx=5, pady=5)
+
+        ttk.Label(self.parcelles_frame, text="Type de sol:").grid(row=2, column=0, padx=5, pady=5)
+        self.nouvelle_parcelle_sol = ttk.Entry(self.parcelles_frame)
+        self.nouvelle_parcelle_sol.grid(row=2, column=1, padx=5, pady=5)
+
+        ttk.Label(self.parcelles_frame, text="Variété de tomate:").grid(row=3, column=0, padx=5, pady=5)
+        self.nouvelle_parcelle_variete = ttk.Combobox(self.parcelles_frame, values=self.get_varietes())
+        self.nouvelle_parcelle_variete.grid(row=3, column=1, padx=5, pady=5)
+
+        ttk.Button(self.parcelles_frame, text="Ajouter Parcelle", command=self.ajouter_parcelle).grid(row=4, column=0, columnspan=2, pady=10)
+
+        self.parcelles_list = tk.Listbox(self.parcelles_frame, width=50)
+        self.parcelles_list.grid(row=5, column=0, columnspan=2, padx=5, pady=5)
+        self.update_parcelles_list()
+
         # Widgets pour l'irrigation
-        ttk.Label(self.irrigation_frame, text="Parcelle ID:").grid(row=0, column=0, padx=5, pady=5)
-        self.irrigation_parcelle_id = ttk.Entry(self.irrigation_frame)
-        self.irrigation_parcelle_id.grid(row=0, column=1, padx=5, pady=5)
+        ttk.Label(self.irrigation_frame, text="Parcelle:").grid(row=0, column=0, padx=5, pady=5)
+        self.irrigation_parcelle = ttk.Combobox(self.irrigation_frame, values=self.get_parcelles())
+        self.irrigation_parcelle.grid(row=0, column=1, padx=5, pady=5)
 
         ttk.Label(self.irrigation_frame, text="Durée (minutes):").grid(row=1, column=0, padx=5, pady=5)
         self.irrigation_duree = ttk.Entry(self.irrigation_frame)
@@ -52,9 +78,9 @@ class IrrigationApp:
         ttk.Button(self.irrigation_frame, text="Ajouter Irrigation", command=self.ajouter_irrigation).grid(row=3, column=0, columnspan=2, pady=10)
 
         # Widgets pour la fertilisation
-        ttk.Label(self.fertilisation_frame, text="Parcelle ID:").grid(row=0, column=0, padx=5, pady=5)
-        self.fertilisation_parcelle_id = ttk.Entry(self.fertilisation_frame)
-        self.fertilisation_parcelle_id.grid(row=0, column=1, padx=5, pady=5)
+        ttk.Label(self.fertilisation_frame, text="Parcelle:").grid(row=0, column=0, padx=5, pady=5)
+        self.fertilisation_parcelle = ttk.Combobox(self.fertilisation_frame, values=self.get_parcelles())
+        self.fertilisation_parcelle.grid(row=0, column=1, padx=5, pady=5)
 
         ttk.Label(self.fertilisation_frame, text="Type d'engrais:").grid(row=1, column=0, padx=5, pady=5)
         self.fertilisation_type_engrais = ttk.Entry(self.fertilisation_frame)
@@ -65,7 +91,23 @@ class IrrigationApp:
         self.fertilisation_quantite.grid(row=2, column=1, padx=5, pady=5)
 
         ttk.Button(self.fertilisation_frame, text="Ajouter Fertilisation", command=self.ajouter_fertilisation).grid(row=3, column=0, columnspan=2, pady=10)
+ 
+    def clear_parcelle_fields(self):
+        self.nouvelle_parcelle_nom.delete(0, tk.END)
+        self.nouvelle_parcelle_superficie.delete(0, tk.END)
+        self.nouvelle_parcelle_sol.delete(0, tk.END)
+        self.nouvelle_parcelle_variete.set('')
 
+    def update_parcelles_list(self):
+        self.parcelles_list.delete(0, tk.END)
+        for parcelle in self.get_parcelles():
+            self.parcelles_list.insert(tk.END, parcelle)
+
+    def update_parcelles_comboboxes(self):
+        parcelles = self.get_parcelles()
+        self.irrigation_parcelle['values'] = parcelles
+        self.fertilisation_parcelle['values'] = parcelles
+        self.parcelle_combobox['values'] = parcelles
     def clear_irrigation_fields(self):
         self.irrigation_parcelle_id.delete(0, tk.END)
         self.irrigation_duree.delete(0, tk.END)
@@ -113,8 +155,8 @@ class IrrigationApp:
         return [row.Nom_Variete for row in self.cursor.fetchall()]
 
     def get_parcelles(self):
-        self.cursor.execute("SELECT ID_Parcelle FROM Parcelles")
-        return [str(row.ID_Parcelle) for row in self.cursor.fetchall()]
+        self.cursor.execute("SELECT Nom FROM Parcelles")
+        return [row.Nom for row in self.cursor.fetchall()]
 
     def afficher_rapport_croissance(self):
         variete = self.variete_combobox.get()
@@ -178,14 +220,14 @@ class IrrigationApp:
 
     def ajouter_irrigation(self):
         try:
-            parcelle_id = int(self.irrigation_parcelle_id.get())
+            parcelle_nom = self.irrigation_parcelle.get()
             duree = float(self.irrigation_duree.get())
             debit = float(self.irrigation_debit.get())
             date_heure = datetime.now()
 
             sql = """INSERT INTO Irrigations (ID_Parcelle, Date_Irrigation, Heure, Duree, Debit)
-                     VALUES (?, ?, ?, ?, ?)"""
-            self.cursor.execute(sql, (parcelle_id, date_heure.date(), date_heure.time(), duree, debit))
+                     VALUES ((SELECT ID_Parcelle FROM Parcelles WHERE Nom = ?), ?, ?, ?, ?)"""
+            self.cursor.execute(sql, (parcelle_nom, date_heure.date(), date_heure.time(), duree, debit))
             self.conn.commit()
 
             messagebox.showinfo("Succès", "Nouvelle irrigation ajoutée avec succès!")
@@ -197,14 +239,14 @@ class IrrigationApp:
 
     def ajouter_fertilisation(self):
         try:
-            parcelle_id = int(self.fertilisation_parcelle_id.get())
+            parcelle_nom = self.fertilisation_parcelle.get()
             type_engrais = self.fertilisation_type_engrais.get()
             quantite = float(self.fertilisation_quantite.get())
             date = datetime.now().date()
 
             sql = """INSERT INTO Fertilisations (ID_Parcelle, Date_Fertilisation, Type_Engrais, Quantite)
-                     VALUES (?, ?, ?, ?)"""
-            self.cursor.execute(sql, (parcelle_id, date, type_engrais, quantite))
+                     VALUES ((SELECT ID_Parcelle FROM Parcelles WHERE Nom = ?), ?, ?, ?)"""
+            self.cursor.execute(sql, (parcelle_nom, date, type_engrais, quantite))
             self.conn.commit()
 
             messagebox.showinfo("Succès", "Nouvelle fertilisation ajoutée avec succès!")
@@ -213,6 +255,33 @@ class IrrigationApp:
             messagebox.showerror("Erreur", "Veuillez entrer des valeurs numériques valides.")
         except Exception as e:
             messagebox.showerror("Erreur", f"Une erreur s'est produite : {str(e)}")
+
+    def ajouter_parcelle(self):
+        try:
+            nom = self.nouvelle_parcelle_nom.get()
+            superficie = float(self.nouvelle_parcelle_superficie.get())
+            type_sol = self.nouvelle_parcelle_sol.get()
+            variete = self.nouvelle_parcelle_variete.get()
+
+            sql = """
+                    INSERT INTO Parcelles (Nom, Superficie, Type_Sol, ID_Variete)
+                    SELECT ?, ?, ?, ID_Variete 
+                    FROM Varietes_Tomates 
+                    WHERE Nom_Variete = ?;
+                    """
+            self.cursor.execute(sql, (nom, superficie, type_sol, variete))
+            self.conn.commit()
+
+            messagebox.showinfo("Succès", "Nouvelle parcelle ajoutée avec succès!")
+            self.clear_parcelle_fields()
+            self.update_parcelles_list()
+            self.update_parcelles_comboboxes()
+        except ValueError:
+            messagebox.showerror("Erreur", "Veuillez entrer une valeur numérique valide pour la superficie.")
+        except Exception as e:
+            messagebox.showerror("Erreur", f"Une erreur s'est produite : {str(e)}")
+
+
 
 if __name__ == "__main__":
     root = tk.Tk()
