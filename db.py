@@ -18,8 +18,10 @@ CREATE TABLE Varietes_Tomates (
 cursor.execute('''
 CREATE TABLE Parcelles (
     ID_Parcelle AUTOINCREMENT PRIMARY KEY,
-    ID_Variete INTEGER,
     Superficie DOUBLE,
+    ID_Variete INTEGER,
+    Type_Sol TEXT,
+    Date_Plantation DATE,
     FOREIGN KEY (ID_Variete) REFERENCES Varietes_Tomates(ID_Variete)
 );
 ''')
