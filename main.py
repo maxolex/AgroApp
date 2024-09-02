@@ -1,10 +1,11 @@
 import pyodbc
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import pandas as pd
 from datetime import datetime
+from datetime import timedelta
 
 class AgroApp:
     def __init__(self, master):
@@ -61,6 +62,9 @@ class AgroApp:
     def afficher_varietes(self):
         self.cursor.execute("SELECT * FROM Varietes_Tomates")
         varietes = self.cursor.fetchall()
+
+        style = ttk.Style()
+        style.configure("Treeview", rowheight=100)
         
         result_window = tk.Toplevel(self.master)
         result_window.title("Toutes les variétés")
@@ -71,9 +75,15 @@ class AgroApp:
         tree.heading("Nom", text="Nom de la variété")
         tree.heading("Cycle", text="Cycle de production")
         tree.heading("Caractéristiques", text="Caractéristiques des fruits")
+
+        # Set column widths
+        tree.column("ID", width=50)
+        tree.column("Nom", width=150)
+        tree.column("Cycle", width=150)
+        tree.column("Caractéristiques", width=300)
         
         for variete in varietes:
-            tree.insert("", "end", values=variete)
+            tree.insert("", "end", values=(variete[0], variete[1], variete[2], variete[3]))
         
         tree.pack(fill=tk.BOTH, expand=True)
     
@@ -191,8 +201,12 @@ class AgroApp:
             INNER JOIN Varietes_Tomates v ON p.ID_Variete = v.ID_Variete
         """)
         parcelles = self.cursor.fetchall()
+
+        style = ttk.Style()
+        style.configure("Treeview", rowheight=40)
+
         for parcelle in parcelles:
-            self.tree_parcelles.insert("", "end", values=parcelle)
+            self.tree_parcelles.insert("","end",values=(parcelle[0], parcelle[1], parcelle[2], parcelle[3],parcelle[4]))
 
     def on_parcelle_select(self, event):
         selected_item = self.tree_parcelles.selection()
@@ -362,7 +376,7 @@ class AgroApp:
         tree.heading("Quantité Eau", text="Quantité d'eau (m³)")
         
         for irrigation in irrigations:
-            tree.insert("", "end", values=irrigation)
+            tree.insert("", "end", values=(irrigation[0],irrigation[1],irrigation[2],irrigation[3],irrigation[4],irrigation[5]))
         
         tree.pack(fill=tk.BOTH, expand=True)
 
@@ -435,7 +449,7 @@ class AgroApp:
 
     def afficher_fertilisations(self):
         self.cursor.execute("""
-            SELECT f.ID_Fertilisation, subquery.Superficie, subquery.Nom_Variete, f.Type_Engrais, f.Quantite_Epandue, f.Methode_Application
+            SELECT f.ID_Fertilisation, subquery.Superficie, subquery.Nom_Variete, f.Type_Engrais, f.Quantite_Epandue, f.Methode_Application, f.Date_Application
             FROM [Fertilisations] f
             INNER JOIN (
                 SELECT p.ID_Parcelle, p.Superficie, v.Nom_Variete
@@ -445,6 +459,8 @@ class AgroApp:
         """)
 
         fertilisations = self.cursor.fetchall()
+
+        print(fertilisations)
         
         result_window = tk.Toplevel(self.master)
         result_window.title("Historique des fertilisations")
@@ -459,7 +475,7 @@ class AgroApp:
         tree.heading("Date", text="Date d'application")
         
         for fertilisation in fertilisations:
-            tree.insert("", "end", values=fertilisation)
+            tree.insert("", "end", values=(fertilisation[0], fertilisation[1], fertilisation[2],fertilisation[3],fertilisation[4],fertilisation[5],fertilisation[6]))
         
         tree.pack(fill=tk.BOTH, expand=True)
 
@@ -508,18 +524,26 @@ class AgroApp:
     def exporter_donnees_fertilisation(self):
         self.cursor.execute("""
             SELECT p.ID_Parcelle, v.Nom_Variete, f.Type_Engrais, f.Quantite_Epandue, f.Methode_Application, f.Date_Application
-            FROM Fertilisations f
-            JOIN Parcelles p ON f.ID_Parcelle = p.ID_Parcelle
-            JOIN Varietes_Tomates v ON p.ID_Variete = v.ID_Variete
+            FROM (Fertilisations f
+            INNER JOIN Parcelles p ON f.ID_Parcelle = p.ID_Parcelle)
+            INNER JOIN Varietes_Tomates v ON p.ID_Variete = v.ID_Variete
         """)
         data = self.cursor.fetchall()
-        
-        df = pd.DataFrame(data, columns=["ID Parcelle", "Variété", "Type Engrais", "Quantité (kg/ha)", "Méthode", "Date"])
-        
-        file_path = filedialog.asksaveasfilename(defaultextension=".xlsx")
-        if file_path:
-            df.to_excel(file_path, index=False)
-            messagebox.showinfo("Exportation réussie", f"Les données ont été exportées vers {file_path}")
+
+        data = [tuple(row) for row in data]
+
+        if len(data) > 0:
+            df = pd.DataFrame(data, columns=["ID Parcelle", "Variété", "Type Engrais", "Quantité (kg/ha)", "Méthode", "Date"])
+
+            file_path = filedialog.asksaveasfilename(defaultextension=".xlsx")
+            if file_path:
+                df.to_excel(file_path, index=False)
+                messagebox.showinfo("Exportation réussie", f"Les données ont été exportées vers {file_path}")
+        else:
+            print("Error: No data fetched or data format is incorrect.")
+            messagebox.showerror("Erreur d'exportation", "Les données récupérées ne correspondent pas au format attendu.")
+
+
     
     def create_resultats_tab(self):
         tab = ttk.Frame(self.notebook)
@@ -589,23 +613,32 @@ class AgroApp:
         tree.heading("Rendement", text="Rendement estimé (tonnes)")
         
         for resultat in resultats:
-            tree.insert("", "end", values=resultat)
+            tree.insert("", "end", values=(resultat[0], resultat[1], resultat[2],resultat[3],resultat[4],resultat[5]))
         
         tree.pack(fill=tk.BOTH, expand=True)
 
     def analyser_rendements(self):
+        # Subquery to get average yields
         self.cursor.execute("""
-            SELECT v.Nom_Variete, AVG(r.Rendement_Estime) as Rendement_Moyen
-            FROM Resultats_Production r
-            JOIN Parcelles p ON r.ID_Parcelle = p.ID_Parcelle
-            JOIN Varietes_Tomates v ON p.ID_Variete = v.ID_Variete
-            GROUP BY v.Nom_Variete
+            SELECT p.ID_Variete, Avg(r.Rendement_Estime) AS Rendement_Moyen
+            FROM Resultats_Production AS r
+            INNER JOIN Parcelles AS p ON r.ID_Parcelle = p.ID_Parcelle
+            GROUP BY p.ID_Variete
         """)
-        resultats = self.cursor.fetchall()
+        resultats_rendements = self.cursor.fetchall()
+        
+        # Query to get variety names
+        self.cursor.execute("SELECT ID_Variete, Nom_Variete FROM Varietes_Tomates")
+        varietes = dict(self.cursor.fetchall())
+        
+        # Combine results
+        resultats = [(varietes.get(id_variete, "Unknown"), rendement) 
+                    for id_variete, rendement in resultats_rendements]
         
         varietes = [r[0] for r in resultats]
         rendements = [r[1] for r in resultats]
         
+        # Create the graph
         fig, ax = plt.subplots(figsize=(10, 6))
         ax.bar(varietes, rendements)
         ax.set_xlabel('Variétés de tomates')
