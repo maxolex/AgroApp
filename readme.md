@@ -19,7 +19,7 @@ AgroApp est une application de bureau conçue pour aider les agriculteurs à gé
 ## Installation
 1. Clonez ce dépôt :
    ```
-   git clone https://github.com/votre-nom/agroapp.git
+   git clone https://github.com/maxolex/agroapp.git
    ```
 2. Installez les dépendances :
    ```

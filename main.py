@@ -26,6 +26,18 @@ class AgroApp:
         self.create_irrigations_tab()
         self.create_fertilisations_tab()
         self.create_resultats_tab()
+
+    def actualiser_onglets(self):
+        # Supprimer tous les onglets existants
+        for tab in self.notebook.tabs():
+            self.notebook.forget(tab)
+        
+        # Recréer les onglets
+        self.create_varietes_tab()
+        self.create_parcelles_tab()
+        self.create_irrigations_tab()
+        self.create_fertilisations_tab()
+        self.create_resultats_tab()
     
     def create_varietes_tab(self):
         tab = ttk.Frame(self.notebook)
@@ -56,6 +68,13 @@ class AgroApp:
             self.cursor.execute("INSERT INTO Varietes_Tomates (Nom_Variete, Cycle_Production, Caracteristiques_Fruits) VALUES (?, ?, ?)", (nom, cycle, caract))
             self.conn.commit()
             messagebox.showinfo("Succès", "Variété ajoutée avec succès!")
+            # Effacer les champs après ajout
+            self.nom_variete.delete(0, tk.END)
+            self.cycle_production.delete(0, tk.END)
+            self.caracteristiques.delete(0, tk.END)
+
+            # Actualiser les onglets
+            self.update_varietes_combobox()
         except Exception as e:
             messagebox.showerror("Erreur", f"Erreur lors de l'ajout : {str(e)}")
     
@@ -156,12 +175,19 @@ class AgroApp:
             date_plantation = self.date_plantation.get()
             
             if id_parcelle:  # Modification
+                # Step 1: Retrieve the ID_Variete for the given Nom_Variete
+                self.cursor.execute("SELECT ID_Variete FROM Varietes_Tomates WHERE Nom_Variete = ?", (variete,))
+                id_variete = self.cursor.fetchone()[0]  # Retrieve the ID_Variete
+
+                # Step 2: Use the retrieved ID_Variete in the UPDATE query
                 self.cursor.execute("""
                     UPDATE Parcelles 
-                    SET Superficie = ?, ID_Variete = (SELECT ID_Variete FROM Varietes_Tomates WHERE Nom_Variete = ?),
-                        Type_Sol = ?, Date_Plantation = ?
+                    SET Superficie = ?, 
+                        ID_Variete = ?, 
+                        Type_Sol = ?, 
+                        Date_Plantation = ?
                     WHERE ID_Parcelle = ?
-                """, (superficie, variete, type_sol, date_plantation, id_parcelle))
+                """, (superficie, id_variete, type_sol, date_plantation, id_parcelle))
             else:  # Ajout
                 self.cursor.execute("SELECT ID_Variete FROM Varietes_Tomates WHERE Nom_Variete = ?", (variete,))
                 id_variete = self.cursor.fetchone()[0]
@@ -172,7 +198,18 @@ class AgroApp:
             
             self.conn.commit()
             messagebox.showinfo("Succès", "Parcelle ajoutée/modifiée avec succès!")
+            # Effacer les champs après ajout
+            self.id_parcelle.delete(0, tk.END)
+            self.superficie_parcelle.delete(0, tk.END)
+            self.variete_parcelle.delete(0, tk.END)
+            self.type_sol.delete(0, tk.END)
+            self.date_plantation.delete(0, tk.END)
+
+            # Actualiser les onglets
             self.afficher_parcelles()
+            self.update_parcelles_combobox()
+            self.update_parcelle_resultats_combobox(self.parcelle_ferti_combobox)
+            self.update_parcelle_resultats_combobox(self.parcelle_resultats_combobox)
         except Exception as e:
             messagebox.showerror("Erreur", f"Erreur lors de l'ajout/modification de la parcelle : {str(e)}")
 
@@ -190,6 +227,9 @@ class AgroApp:
                 self.conn.commit()
                 messagebox.showinfo("Succès", "Parcelle supprimée avec succès!")
                 self.afficher_parcelles()
+                self.update_parcelles_combobox()
+                self.update_parcelle_resultats_combobox(self.parcelle_ferti_combobox)
+                self.update_parcelle_resultats_combobox(self.parcelle_resultats_combobox)
             except Exception as e:
                 messagebox.showerror("Erreur", f"Erreur lors de la suppression de la parcelle : {str(e)}")
 
@@ -304,21 +344,22 @@ class AgroApp:
         self.parcelle_combobox = ttk.Combobox(tab)
         self.parcelle_combobox.grid(row=0, column=1, padx=5, pady=5)
         self.update_parcelles_combobox()
-        
+    
+
         ttk.Label(tab, text="Type d'irrigation:").grid(row=1, column=0, padx=5, pady=5)
-        self.type_irrigation = ttk.Entry(tab)
+        self.type_irrigation = ttk.Combobox(tab, values=["Goute à goute"])
         self.type_irrigation.grid(row=1, column=1, padx=5, pady=5)
         
-        ttk.Label(tab, text="Débit d'irrigation (m³/ha):").grid(row=2, column=0, padx=5, pady=5)
-        self.debit_irrigation = ttk.Entry(tab)
-        self.debit_irrigation.grid(row=2, column=1, padx=5, pady=5)
+        ttk.Label(tab, text="Débit d'irrigation (m³/ha):").grid(row=1, column=0, padx=5, pady=5)
+        self.debit_irrigation = ttk.Combobox(tab,values=[15,16])
+        self.debit_irrigation.grid(row=1, column=1, padx=5, pady=5)
         
         ttk.Label(tab, text="Nombre d'arrosages:").grid(row=3, column=0, padx=5, pady=5)
         self.nombre_arrosage = ttk.Entry(tab)
         self.nombre_arrosage.grid(row=3, column=1, padx=5, pady=5)
         
         ttk.Label(tab, text="Quantité d'eau utilisée (m³):").grid(row=4, column=0, padx=5, pady=5)
-        self.quantite_eau = ttk.Entry(tab)
+        self.quantite_eau = ttk.Entry(tab,state="readonly")
         self.quantite_eau.grid(row=4, column=1, padx=5, pady=5)
         
         # Boutons
@@ -353,6 +394,14 @@ class AgroApp:
                                 (parcelle_id, type_irr, debit, nb_arrosage, quantite_eau))
             self.conn.commit()
             messagebox.showinfo("Succès", "Irrigation ajoutée avec succès!")
+            # Effacer les champs après ajout
+            self.parcelle_combobox.delete(0, tk.END)
+            self.type_irrigation.delete(0, tk.END)
+            self.debit_irrigation.delete(0, tk.END)
+            self.nombre_arrosage.delete(0, tk.END)
+            self.quantite_eau.delete(0, tk.END)
+
+            # Actualiser les onglets
         except Exception as e:
             messagebox.showerror("Erreur", f"Erreur lors de l'ajout : {str(e)}")
 
@@ -383,15 +432,17 @@ class AgroApp:
     def calculer_eau(self):
         try:
             parcelle_id = int(self.parcelle_combobox.get().split('-')[0].strip())
-            debit = float(self.debit_irrigation.get())
+            debit = int(self.debit_irrigation.get().strip())
             nb_arrosage = int(self.nombre_arrosage.get())
             
             self.cursor.execute("SELECT Superficie FROM Parcelles WHERE ID_Parcelle = ?", (parcelle_id,))
             superficie = self.cursor.fetchone()[0]
             
             quantite_eau = (debit * superficie / 10000) * nb_arrosage  # Conversion m³/ha en m³/m²
+            self.quantite_eau.config(state="normal")  # Permet la modification
             self.quantite_eau.delete(0, tk.END)
             self.quantite_eau.insert(0, f"{quantite_eau:.2f}")
+            self.quantite_eau.config(state="readonly")  # Remet le champ en lecture seule
             
             messagebox.showinfo("Calcul", f"Quantité d'eau calculée : {quantite_eau:.2f} m³")
         except Exception as e:
@@ -408,7 +459,7 @@ class AgroApp:
         self.update_parcelle_resultats_combobox(self.parcelle_ferti_combobox)
         
         ttk.Label(tab, text="Type d'engrais:").grid(row=1, column=0, padx=5, pady=5)
-        self.type_engrais = ttk.Entry(tab)
+        self.type_engrais = ttk.Combobox(tab,values=["NPK-15-15-15", "Engrais Organique","Urée"])
         self.type_engrais.grid(row=1, column=1, padx=5, pady=5)
         
         ttk.Label(tab, text="Quantité épandue (kg/ha):").grid(row=2, column=0, padx=5, pady=5)
@@ -416,7 +467,7 @@ class AgroApp:
         self.quantite_epandue.grid(row=2, column=1, padx=5, pady=5)
         
         ttk.Label(tab, text="Méthode d'application:").grid(row=3, column=0, padx=5, pady=5)
-        self.methode_application = ttk.Combobox(tab, values=["Épandage", "Fertigation", "Foliaire"])
+        self.methode_application = ttk.Combobox(tab, values=["Poquet", "Volet"])
         self.methode_application.grid(row=3, column=1, padx=5, pady=5)
         
         ttk.Label(tab, text="Date d'application:").grid(row=4, column=0, padx=5, pady=5)
@@ -444,6 +495,16 @@ class AgroApp:
             """, (parcelle_id, type_engrais, quantite, methode, date))
             self.conn.commit()
             messagebox.showinfo("Succès", "Fertilisation ajoutée avec succès!")
+            messagebox.showinfo("Succès", "Irrigation ajoutée avec succès!")
+            # Effacer les champs après ajout
+            self.parcelle_combobox.delete(0, tk.END)
+            self.type_engrais.delete(0, tk.END)
+            self.quantite_epandue.delete(0, tk.END)
+            self.methode_application.delete(0, tk.END)
+            self.date_application.delete(0, tk.END)
+
+            # Actualiser les onglets
+            
         except Exception as e:
             messagebox.showerror("Erreur", f"Erreur lors de l'ajout de la fertilisation : {str(e)}")
 
@@ -543,8 +604,6 @@ class AgroApp:
             print("Error: No data fetched or data format is incorrect.")
             messagebox.showerror("Erreur d'exportation", "Les données récupérées ne correspondent pas au format attendu.")
 
-
-    
     def create_resultats_tab(self):
         tab = ttk.Frame(self.notebook)
         self.notebook.add(tab, text="Résultats de Production")
@@ -585,6 +644,14 @@ class AgroApp:
             """, (parcelle_id, hauteur, poids_moyen, rendement))
             self.conn.commit()
             messagebox.showinfo("Succès", "Résultat de production ajouté avec succès!")
+            # Effacer les champs après ajout
+            self.parcelle_combobox.delete(0, tk.END)
+            self.hauteur_plants.delete(0, tk.END)
+            self.poids_moyen_fruits.delete(0, tk.END)
+            self.rendement_estime.delete(0, tk.END)
+
+            # Actualiser les onglets
+            
         except Exception as e:
             messagebox.showerror("Erreur", f"Erreur lors de l'ajout du résultat : {str(e)}")
 
